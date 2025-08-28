@@ -1,5 +1,5 @@
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, updatePassword } from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../firebaseConfig';
 
@@ -34,9 +34,42 @@ export const AuthContextProvider = ({ children }) => {
         }
     }
 
+    const updateProfile = async (updateData) => {
+        try {
+            const currentUser = auth.currentUser;
+            if (!currentUser) {
+                return { success: false, msg: 'No user logged in' };
+            }
+
+            // Update password if provided
+            if (updateData.password) {
+                await updatePassword(currentUser, updateData.password);
+            }
+
+            // Update Firestore document
+            const userDocRef = doc(db, 'users', currentUser.uid);
+            const updateFields = {
+                username: updateData.username,
+                profileUrl: updateData.profileUrl
+            };
+
+            await updateDoc(userDocRef, updateFields);
+
+            // Update local state
+            await updateUserData(currentUser.uid);
+
+            return { success: true };
+        } catch (e) {
+            let msg = e.message;
+            if (msg.includes('(auth/weak-password)')) msg = 'Password is too weak';
+            if (msg.includes('(auth/requires-recent-login)')) msg = 'Please log out and log in again to change password';
+            return { success: false, msg };
+        }
+    }
+
     const login = async (email, password) => {
         try {
-            const response = await signInWithEmailAndPassword(auth, email, password);
+            await signInWithEmailAndPassword(auth, email, password);
             return { success: true };
         } catch (e) {
             let msg = e.message;
@@ -76,7 +109,7 @@ export const AuthContextProvider = ({ children }) => {
     }
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated, login, logout, register }}>
+        <AuthContext.Provider value={{ user, isAuthenticated, login, logout, register, updateProfile }}>
             {children}
         </AuthContext.Provider>
     )

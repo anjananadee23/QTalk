@@ -25,7 +25,7 @@ export default function ChatItem({ item, router, noBorder, currentUser }) {
 
         return unsub;
 
-    }, []);
+    }, [currentUser?.userId, item?.userId]);
 
     // console.log('Last message:', lastMessage);
 
@@ -46,34 +46,53 @@ export default function ChatItem({ item, router, noBorder, currentUser }) {
             if (currentUser?.userId === lastMessage?.userId) return "You: " + lastMessage?.text;
             return lastMessage?.text;
         } else {
-            return 'Say Hi 👋';
+            return 'Tap to start messaging';
         }
     }
 
     return (
-        <TouchableOpacity onPress={openChatRoom} className={`flex-row justify-between mx-4 items-center gap-3 mb-4 pb-2 ${noBorder ? '' : 'border-b border-b-neutral-200'}`}>
-            {/* <Image
-                source={{uri: item?.profileUrl}}
-                style={{ height: hp(6), width: hp(6) }}
-                className="rounded-full"
-            /> */}
+        <TouchableOpacity 
+            onPress={openChatRoom} 
+            className={`flex-row items-center gap-4 mx-4 py-3 ${noBorder ? '' : 'border-b border-telegram-separator'}`}
+            style={{ backgroundColor: 'transparent' }}
+        >
+            {/* Profile Image */}
+            <View className="relative">
+                <Image
+                    source={{ uri: item?.profileUrl }}
+                    placeholder={blurhash}
+                    transition={500}
+                    style={{ 
+                        height: hp(6.5), 
+                        width: hp(6.5), 
+                        borderRadius: hp(3.25),
+                        backgroundColor: '#E0E0E0' 
+                    }}
+                />
+            </View>
 
-            <Image
-                source={{ uri: item?.profileUrl }}
-                placeholder={blurhash}
-                transition={500}
-                style={{ height: hp(6), width: hp(6), borderRadius: 100 }}
-            />
-
-            {/* name and last message */}
+            {/* Chat content */}
             <View className="flex-1 gap-1">
-                <View className="flex-row justify-between">
-                    <Text style={{ fontSize: hp(1.8) }} className="font-semibold text-neutral-800">{item?.username}</Text>
-                    <Text style={{ fontSize: hp(1.6) }} className="font-medium text-neutral-400">
+                <View className="flex-row justify-between items-center">
+                    <Text 
+                        style={{ fontSize: hp(2) }} 
+                        className="font-medium text-telegram-text"
+                        numberOfLines={1}
+                    >
+                        {item?.username}
+                    </Text>
+                    <Text 
+                        style={{ fontSize: hp(1.5) }} 
+                        className="text-telegram-textLight"
+                    >
                         {renderTime()}
                     </Text>
                 </View>
-                <Text style={{ fontSize: hp(1.6) }} className="font-medium text-neutral-400">
+                <Text 
+                    style={{ fontSize: hp(1.7) }} 
+                    className="text-telegram-textLight"
+                    numberOfLines={1}
+                >
                     {renderLastMessage()}
                 </Text>
             </View>

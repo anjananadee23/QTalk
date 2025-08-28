@@ -32,7 +32,7 @@ export default function SignIn() {
   }
 
   return (
-    <View className="flex-1">
+    <View className="flex-1 bg-telegram-lighter">
       <StatusBar style="dark" />
 
       <View style={{ paddingTop: hp(8), paddingHorizontal: wp(5) }} className="flex-1 gap-12">
@@ -42,34 +42,34 @@ export default function SignIn() {
         </View>
 
         <View className="gap-10">
-          <Text style={{ fontSize: hp(4) }} className="font-bold tracking-wider text-center text-neutral-800">Sign In</Text>
+          <Text style={{ fontSize: hp(4) }} className="font-medium tracking-wide text-center text-telegram-text">Sign In</Text>
           {/* Inputs */}
           <View className="gap-4">
 
-            <View style={{ height: hp(7) }} className="flex-row gap-4 px-4 bg-neutral-100 items-center rounded-2xl">
-              <Octicons name="mail" size={hp(2.7)} color="gray" />
+            <View style={{ height: hp(7) }} className="flex-row gap-4 px-4 bg-white items-center rounded-xl border border-telegram-separator">
+              <Octicons name="mail" size={hp(2.7)} color="#0088CC" />
               <TextInput
                 onChangeText={value => emailRef.current = value}
                 style={{ fontSize: hp(2) }}
-                className="flex-1 font-semibold text-neutral-700"
+                className="flex-1 font-medium text-telegram-text"
                 placeholder="Email Address"
-                placeholderTextColor={'gray'}
+                placeholderTextColor={'#999999'}
               />
             </View>
 
             <View className="gap-4">
-              <View style={{ height: hp(7) }} className="flex-row gap-4 px-4 bg-neutral-100 items-center rounded-2xl">
-                <Octicons name="lock" size={hp(2.7)} color="gray" />
+              <View style={{ height: hp(7) }} className="flex-row gap-4 px-4 bg-white items-center rounded-xl border border-telegram-separator">
+                <Octicons name="lock" size={hp(2.7)} color="#0088CC" />
                 <TextInput
                   onChangeText={value => passwordRef.current = value}
                   style={{ fontSize: hp(2) }}
-                  className="flex-1 font-semibold text-neutral-700"
+                  className="flex-1 font-medium text-telegram-text"
                   placeholder="Password"
-                  placeholderTextColor={'gray'}
+                  placeholderTextColor={'#999999'}
                   secureTextEntry
                 />
               </View>
-              <Text style={{ fontSize: hp(1.8) }} className="font-semibold text-right text-neutral-500">Forgot Password?</Text>
+              <Text style={{ fontSize: hp(1.8) }} className="font-medium text-right text-telegram-textLight">Forgot Password?</Text>
             </View>
 
             {/* Sign In Button */}
@@ -91,13 +91,13 @@ export default function SignIn() {
                 onPress={handleLogin}
                 style={{
                   height: hp(6.5),
-                  width: wp(30),
-                  borderRadius: 30,
+                  paddingHorizontal: 40,
+                  borderRadius: 24,
                   opacity: loading ? 0 : 1
                 }}
-                className="bg-purple-950 justify-center items-center"
+                className="bg-telegram-primary justify-center items-center"
               >
-                <Text style={{ fontSize: hp(2.7) }} className="text-white font-bold tracking-wider">
+                <Text style={{ fontSize: hp(2.2) }} className="text-white font-medium tracking-wide">
                   Sign In
                 </Text>
               </TouchableOpacity>
@@ -106,9 +106,9 @@ export default function SignIn() {
 
               {/* Sign Up text */}
               <View className="flex-row justify-center" style={{ marginTop: hp(2) }}>
-                <Text style={{ fontSize: hp(1.8) }} className="font-semibold text-neutral-500">Don't have an account? </Text>
+                <Text style={{ fontSize: hp(1.8) }} className="font-medium text-telegram-textLight">Don&apos;t have an account? </Text>
                 <Pressable onPress={() => router.push('/signUp')} style={{ paddingHorizontal: 4, paddingVertical: 2 }}>
-                  <Text style={{ fontSize: hp(1.8) }} className="font-semibold text-purple-950">Sign Up</Text>
+                  <Text style={{ fontSize: hp(1.8) }} className="font-medium text-telegram-primary">Sign Up</Text>
                 </Pressable>
               </View>
             </View>
