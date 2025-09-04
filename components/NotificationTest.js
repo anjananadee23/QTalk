@@ -67,7 +67,7 @@ export default function NotificationTest() {
 
     return (
         <View className="p-4 border border-gray-300 rounded-lg m-4 bg-white">
-            <Text 
+            {/* <Text 
                 className="text-lg font-semibold mb-3 text-center" 
                 style={{ fontSize: hp(2.2) }}
             >
@@ -127,7 +127,7 @@ export default function NotificationTest() {
                 style={{ fontSize: hp(1.4) }}
             >
                 User ID: {user?.userId || 'Not logged in'}
-            </Text>
+            </Text> */}
         </View>
     );
 }

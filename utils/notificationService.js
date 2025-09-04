@@ -63,16 +63,19 @@ class NotificationService {
       let finalStatus = existingStatus;
       
       if (existingStatus !== 'granted') {
+        console.log('🔔 Requesting notification permissions...');
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
+        console.log('🔔 Permission status:', finalStatus);
       }
       
       if (finalStatus !== 'granted') {
-        console.log('Failed to get push token for push notification!');
+        console.log('❌ Failed to get push token for push notification! Permission denied.');
         return null;
       }
       
       try {
+        console.log('🔄 Getting Expo push token...');
         // For standalone apps, use the project ID from app.json
         const tokenData = await Notifications.getExpoPushTokenAsync({
           projectId: 'd29ff267-ab16-4791-b0ad-a56364f397cb'
@@ -80,7 +83,7 @@ class NotificationService {
         
         token = tokenData.data;
         this.expoPushToken = token;
-        console.log('✅ Push token obtained:', token);
+        console.log('✅ Push token obtained:', token.substring(0, 50) + '...');
         
         // Store token in AsyncStorage
         await AsyncStorage.setItem('expoPushToken', token);
@@ -91,8 +94,9 @@ class NotificationService {
         
         // Fallback: try getting device push token for standalone apps
         try {
+          console.log('🔄 Trying device push token as fallback...');
           const deviceToken = await Notifications.getDevicePushTokenAsync();
-          console.log('🔄 Using device push token as fallback:', deviceToken);
+          console.log('🔄 Using device push token as fallback:', deviceToken.data?.substring(0, 50) + '...');
           this.expoPushToken = deviceToken.data;
           await AsyncStorage.setItem('expoPushToken', deviceToken.data);
           return deviceToken.data;
@@ -102,7 +106,7 @@ class NotificationService {
         }
       }
     } else {
-      console.log('Must use physical device for Push Notifications');
+      console.log('❌ Must use physical device for Push Notifications');
       return null;
     }
   }
@@ -195,6 +199,20 @@ class NotificationService {
       return;
     }
 
+    // Check if user is currently in this chat room and app is in foreground
+    if (this.currentChatRoomId === chatData.roomId && this.appState === 'active') {
+      console.log('🔇 User is in current chat room, skipping notification');
+      return;
+    }
+
+    console.log('🔔 Preparing to send message notification:');
+    console.log('  - Recipient token:', recipientToken.substring(0, 50) + '...');
+    console.log('  - Sender:', senderName);
+    console.log('  - Message preview:', message.substring(0, 30) + '...');
+    console.log('  - Chat data:', chatData);
+    console.log('  - Current chat room:', this.currentChatRoomId);
+    console.log('  - App state:', this.appState);
+
     const title = `New message from ${senderName}`;
     const body = message.length > 50 ? message.substring(0, 47) + '...' : message;
     
@@ -210,23 +228,30 @@ class NotificationService {
     };
 
     try {
-      await this.sendPushNotification(recipientToken, title, body, notificationData);
+      console.log('🔔 Sending push notification...');
+      const result = await this.sendPushNotification(recipientToken, title, body, notificationData);
+      console.log('✅ Message notification sent successfully:', result);
+      return result;
     } catch (error) {
       console.error('❌ Error sending message notification:', error);
+      throw error;
     }
   }
 
   // Set up notification listeners
   setupNotificationListeners(router) {
+    console.log('🔔 Setting up notification listeners...');
+    
     // Listener for notifications received while app is running
     this.notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('🔔 Notification received:', notification);
+      console.log('🔔 Notification received while app is running:', notification);
       // You can handle in-app notifications here
+      // For example, show a banner or update the UI
     });
 
     // Listener for user tapping on notifications
     this.responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('🔔 Notification tapped:', response);
+      console.log('🔔 Notification tapped by user:', response);
       
       const data = response.notification.request.content.data;
       
@@ -237,6 +262,8 @@ class NotificationService {
         }, 500);
       }
     });
+    
+    console.log('✅ Notification listeners set up successfully');
   }
 
   // Handle when user taps on a message notification

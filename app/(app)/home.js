@@ -6,12 +6,13 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import ChatList from '../../components/ChatList';
-import NotificationTest from '../../components/NotificationTest';
+import NotificationStatus from '../../components/NotificationStatus';
 import QRGenerator from '../../components/QRGenerator';
 import QRScanner from '../../components/QRScanner';
 import { useAuth } from '../../context/authContext';
 import { db, usersRef } from '../../firebaseConfig';
 import databaseService from '../../utils/database';
+import notificationService from '../../utils/notificationService';
 import { getSavedContacts } from '../../utils/qrService';
 
 export default function Home() {
@@ -21,6 +22,29 @@ export default function Home() {
   const [showQROptions, setShowQROptions] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showQRGenerator, setShowQRGenerator] = useState(false);
+
+  // Initialize notifications when home loads
+  useEffect(() => {
+    const initializeNotifications = async () => {
+      if (user?.uid) {
+        try {
+          console.log('🔔 Initializing notifications on home screen...');
+          const pushToken = await notificationService.registerForPushNotificationsAsync();
+          if (pushToken) {
+            console.log('✅ Push token registered on home screen');
+            await notificationService.updateUserPushToken(user.uid, pushToken);
+            console.log('✅ Push token updated in Firestore from home screen');
+          } else {
+            console.log('⚠️ No push token obtained on home screen');
+          }
+        } catch (error) {
+          console.error('❌ Error initializing notifications on home screen:', error);
+        }
+      }
+    };
+
+    initializeNotifications();
+  }, [user?.uid]);
 
   const getSavedUsers = React.useCallback(async () => {
     // Enhanced function to get users from both Firebase and SQLite for offline access
@@ -249,15 +273,13 @@ export default function Home() {
           </Text>
         </View>
       ) : users.length > 0 ? (
-        <>
+        <View className="flex-1">
+          <NotificationStatus />
           <ChatList currentUser={user} users={users} />
-          {/* Add notification test component for testing */}
-          <NotificationTest />
-        </>
+        </View>
       ) : (
         <View className="flex items-center justify-center flex-1 px-8">
-          {/* Add notification test component for testing */}
-          <NotificationTest />
+          <NotificationStatus />
           
           {/* Empty state illustration */}
           <View 

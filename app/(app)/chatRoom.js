@@ -406,8 +406,11 @@ export default function ChatRoom() {
 
                 // Send push notification to recipient
                 try {
+                    console.log('🔔 Attempting to send push notification to recipient:', item?.userId);
                     const recipientToken = await getRecipientPushToken(item?.userId);
                     if (recipientToken) {
+                        console.log('✅ Recipient push token found:', recipientToken.substring(0, 50) + '...');
+                        
                         // Send notification with user info
                         await notificationService.sendMessageNotification(
                             recipientToken,
@@ -424,7 +427,7 @@ export default function ChatRoom() {
                                 tempChatId: tempChatId
                             }
                         );
-                        console.log('✅ Push notification sent to recipient');
+                        console.log('✅ Push notification sent successfully to recipient');
                     } else {
                         console.log('⚠️ Recipient has no push token, notification not sent');
                     }
