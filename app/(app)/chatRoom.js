@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { addDoc, collection, doc, onSnapshot, orderBy, query, setDoc, Timestamp } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, onSnapshot, orderBy, query, setDoc, Timestamp } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Keyboard, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
@@ -13,6 +13,7 @@ import { useAuth } from '../../context/authContext';
 import { db } from '../../firebaseConfig';
 import { getRoomId } from '../../utils/common';
 import databaseService from '../../utils/database';
+import notificationService from '../../utils/notificationService';
 import { deleteEntireChatData } from '../../utils/qrService';
 import syncService from '../../utils/syncService';
 
@@ -37,14 +38,19 @@ export default function ChatRoom() {
     console.log('Is temporary chat:', isTemporary);
     console.log('====================');
 
-    // Load messages from SQLite and sync with Firebase
+    // Load messages from SQLite and sync with Firebase - Enhanced for standalone APK
     useEffect(() => {
+        // Set current chat room to prevent notifications for this chat
+        notificationService.setCurrentChatRoom(roomId);
+
         const loadMessages = async () => {
             try {
+                console.log('📱 Loading messages for standalone APK...');
+                
                 // Ensure database is initialized first
                 await databaseService.ensureInitialized();
                 
-                // First, load messages from SQLite for immediate display
+                // First, load messages from SQLite for immediate display (works offline)
                 const localMessages = await databaseService.getMessages(roomId);
                 console.log('📱 SQLite messages loaded:', localMessages.length);
                 
@@ -75,9 +81,15 @@ export default function ChatRoom() {
                 console.log(`📊 Initial load: Total ${localMessages.length}, Unique ${uniqueLocalMessages.length}`);
                 setMessages(formattedMessages);
 
-                // Then sync with Firebase for real-time updates
+                // If we have messages locally, we're good to go for offline use
+                if (formattedMessages.length > 0) {
+                    console.log('✅ Chat ready for offline use with', formattedMessages.length, 'messages');
+                }
+
+                // Then sync with Firebase for real-time updates (only if online)
                 try {
                     await syncService.syncMessagesFromFirestore(roomId);
+                    console.log('✅ Firebase sync completed');
                     
                     // Reload messages after sync with deduplication
                     const updatedMessages = await databaseService.getMessages(roomId);
@@ -108,13 +120,30 @@ export default function ChatRoom() {
                     console.log(`📊 After sync: Total ${updatedMessages.length}, Unique ${uniqueUpdatedMessages.length}`);
                     setMessages(updatedFormattedMessages);
                 } catch (syncError) {
-                    console.error('❌ Error syncing with Firestore (non-critical):', syncError);
-                    // Continue with local messages even if sync fails
+                    console.log('❌ Firebase sync failed (working offline):', syncError.message);
+                    // Continue with local messages even if sync fails - this is key for offline functionality
+                    console.log('📱 Continuing with offline messages:', formattedMessages.length);
                 }
             } catch (error) {
                 console.error('❌ Error loading messages:', error);
-                // Set empty messages array if all else fails
-                setMessages([]);
+                // Even if there's an error, try to show something
+                try {
+                    // Last resort: try to get any messages from SQLite
+                    const fallbackMessages = await databaseService.getMessages(roomId);
+                    const fallbackFormatted = fallbackMessages.map(msg => ({
+                        id: msg.id,
+                        userId: msg.userId,
+                        text: msg.text,
+                        profileUrl: msg.profileUrl,
+                        senderName: msg.senderName,
+                        createdAt: msg.createdAt
+                    }));
+                    setMessages(fallbackFormatted);
+                    console.log('📱 Fallback messages loaded:', fallbackFormatted.length);
+                } catch (fallbackError) {
+                    console.error('❌ Fallback message loading failed:', fallbackError);
+                    setMessages([]);
+                }
             }
         };
 
@@ -248,6 +277,8 @@ export default function ChatRoom() {
         return () => {
             unsub();
             KeyboardDidShowListener.remove();
+            // Clear current chat room when leaving
+            notificationService.clearCurrentChatRoom();
         }
 
     }, [roomId, isTemporary, tempChatId]);
@@ -261,6 +292,24 @@ export default function ChatRoom() {
             scrollViewRef?.current?.scrollToEnd({ animated: true })
         }, 100)
     }
+
+    // Helper function to get recipient's push token from Firestore
+    const getRecipientPushToken = async (recipientUserId) => {
+        try {
+            const userRef = doc(db, 'users', recipientUserId);
+            const userSnap = await getDoc(userRef);
+            
+            if (userSnap.exists()) {
+                const userData = userSnap.data();
+                return userData.expoPushToken || null;
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('❌ Error getting recipient push token:', error);
+            return null;
+        }
+    };
 
     const handleSendMessage = async () => {
         let message = textRef.current.trim();
@@ -362,6 +411,35 @@ export default function ChatRoom() {
                 // Mark as synced in SQLite
                 await databaseService.markMessageAsSynced(messageId);
                 console.log('✅ Message sent to Firebase:', newDoc.id);
+
+                // Send push notification to recipient
+                try {
+                    const recipientToken = await getRecipientPushToken(item?.userId);
+                    if (recipientToken) {
+                        // Send notification with user info
+                        await notificationService.sendMessageNotification(
+                            recipientToken,
+                            user?.username || 'Someone',
+                            message,
+                            {
+                                senderId: user?.userId,
+                                senderName: user?.username,
+                                senderProfileUrl: user?.profileUrl,
+                                roomId: roomId,
+                                userId: item?.userId, // recipient's ID
+                                recipientUsername: item?.username,
+                                isTemporary: isTemporary,
+                                tempChatId: tempChatId
+                            }
+                        );
+                        console.log('✅ Push notification sent to recipient');
+                    } else {
+                        console.log('⚠️ Recipient has no push token, notification not sent');
+                    }
+                } catch (notificationError) {
+                    console.error('❌ Error sending push notification:', notificationError);
+                    // Don't fail the message sending if notification fails
+                }
             } catch (firebaseError) {
                 console.log('❌ Firebase error, message saved locally:', firebaseError);
                 // Message is already saved in SQLite, will sync later
@@ -403,7 +481,7 @@ export default function ChatRoom() {
 
     return (
         <CustomKeyboardView inChat={true}>
-            <View className="flex-1 bg-white">
+            <View className="flex-1" style={{ backgroundColor: '#f7f8fc' }}>
                 <StatusBar style="dark" />
                 <ChatRoomHeader user={item} router={router} />
 
@@ -417,69 +495,120 @@ export default function ChatRoom() {
                     />
                 )}
 
-                <View className="flex-1 justify-between bg-telegram-light overflow-visible">
-                    <View className="flex-1">
+                <View className="flex-1 justify-between overflow-visible">
+                    {/* Messages Container */}
+                    <View className="flex-1" style={{ backgroundColor: '#f7f8fc' }}>
                         <MessageList scrollViewRef={scrollViewRef} messages={messages} currentUser={user} />
                     </View>
                     
-                    {/* Duplicate Message Warning */}
+                    {/* Duplicate Message Warning - Enhanced */}
                     {duplicateWarning && (
                         <View 
-                            className="absolute top-4 left-4 right-4 bg-orange-100 border border-orange-300 rounded-lg px-4 py-2 z-10"
+                            className="absolute top-4 left-4 right-4 z-10"
                             style={{
+                                backgroundColor: '#fff3cd',
+                                borderRadius: 12,
+                                paddingHorizontal: 16,
+                                paddingVertical: 12,
+                                borderWidth: 1,
+                                borderColor: '#ffeaa7',
                                 shadowColor: '#000',
                                 shadowOffset: { width: 0, height: 2 },
-                                shadowOpacity: 0.2,
-                                shadowRadius: 4,
-                                elevation: 5,
+                                shadowOpacity: 0.15,
+                                shadowRadius: 8,
+                                elevation: 6,
                             }}
                         >
-                            <Text 
-                                className="text-orange-800 text-center font-medium"
-                                style={{ fontSize: hp(1.6) }}
-                            >
-                                {duplicateWarning}
-                            </Text>
+                            <View className="flex-row items-center justify-center">
+                                <View 
+                                    style={{ 
+                                        width: 20, 
+                                        height: 20, 
+                                        borderRadius: 10, 
+                                        backgroundColor: '#f39c12', 
+                                        marginRight: 8,
+                                        justifyContent: 'center',
+                                        alignItems: 'center'
+                                    }}
+                                >
+                                    <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>!</Text>
+                                </View>
+                                <Text 
+                                    className="text-center font-medium flex-1"
+                                    style={{ 
+                                        fontSize: hp(1.6), 
+                                        color: '#8b6914',
+                                        lineHeight: hp(2.2)
+                                    }}
+                                >
+                                    {duplicateWarning}
+                                </Text>
+                            </View>
                         </View>
                     )}
                     
-                    <View style={{ marginBottom: hp(5.5) }} className="pt-3 px-4">
+                    {/* Message Input Bar - Enhanced */}
+                    <View 
+                        style={{
+                            paddingHorizontal: 16,
+                            paddingVertical: 12,
+                            backgroundColor: '#ffffff',
+                            borderTopWidth: 1,
+                            borderTopColor: 'rgba(0, 0, 0, 0.05)',
+                        }}
+                    >
                         <View 
-                            className="flex-row items-center bg-white rounded-3xl px-4 py-3"
                             style={{
+                                flexDirection: 'row',
+                                alignItems: 'flex-end',
+                                backgroundColor: '#f8f9fa',
+                                borderRadius: 24,
+                                paddingHorizontal: 16,
+                                paddingVertical: 8,
+                                borderWidth: 1.5,
+                                borderColor: 'rgba(0, 136, 204, 0.1)',
+                                minHeight: hp(5.5),
                                 shadowColor: '#000',
                                 shadowOffset: { width: 0, height: 1 },
-                                shadowOpacity: 0.1,
-                                shadowRadius: 3,
-                                elevation: 3,
-                                borderWidth: 1,
-                                borderColor: 'rgba(0, 136, 204, 0.1)'
+                                shadowOpacity: 0.05,
+                                shadowRadius: 4,
+                                elevation: 2,
                             }}
                         >
                             <TextInput
                                 ref={inputRef}
                                 onChangeText={value => textRef.current = value}
-                                placeholder='Message'
+                                placeholder='Type a message...'
                                 style={{
                                     fontSize: hp(1.9),
                                     flex: 1,
-                                    paddingVertical: hp(0.5),
+                                    paddingVertical: hp(0.8),
+                                    paddingRight: 8,
                                     maxHeight: hp(12),
-                                    color: '#000000'
+                                    color: '#2c3e50',
+                                    lineHeight: hp(2.4)
                                 }}
-                                placeholderTextColor={'#999999'}
+                                placeholderTextColor={'#7f8c8d'}
                                 multiline
-                                textAlignVertical="center"
+                                textAlignVertical="top"
                             />
                             <TouchableOpacity 
                                 onPress={handleSendMessage} 
-                                className="bg-telegram-primary p-2 rounded-full ml-3"
                                 style={{
-                                    width: hp(4.5),
-                                    height: hp(4.5),
+                                    width: hp(4.2),
+                                    height: hp(4.2),
+                                    borderRadius: hp(2.1),
+                                    backgroundColor: '#0088CC',
                                     justifyContent: 'center',
-                                    alignItems: 'center'
+                                    alignItems: 'center',
+                                    marginLeft: 8,
+                                    shadowColor: '#0088CC',
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.3,
+                                    shadowRadius: 4,
+                                    elevation: 4,
                                 }}
+                                activeOpacity={0.8}
                             >
                                 <Feather name="send" size={hp(2)} color="white" />
                             </TouchableOpacity>

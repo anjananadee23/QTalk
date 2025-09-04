@@ -209,36 +209,128 @@ class SyncService {
     }
   }
 
-  // Full sync for a user
+  // Full sync for a user - Enhanced for standalone APK
   async fullSyncForUser(userId) {
-    if (!this.isOnline) {
-      console.log('📱 Offline: Full sync will be performed when online');
-      return;
-    }
-
     try {
-      console.log('🔄 Starting full sync for user:', userId);
+      console.log('🔄 Starting enhanced full sync for user:', userId);
       
+      // Ensure database is initialized first
+      await databaseService.ensureInitialized();
+      
+      if (!this.isOnline) {
+        console.log('📱 Offline: Loading messages from SQLite only');
+        // Even offline, we can show stats about local data
+        const dbSize = await databaseService.getDatabaseSize();
+        console.log('📊 Local database content:', dbSize);
+        return;
+      }
+
       // Sync user data
       await this.syncUserFromFirestore(userId);
       
       // Sync saved contacts
       await this.syncSavedContactsFromFirestore(userId);
       
-      // Get all rooms for the user and sync messages
-      const rooms = await databaseService.getAllRooms();
-      for (const room of rooms) {
+      // Enhanced room and message syncing
+      try {
+        // First, get all rooms that this user is part of from Firestore
+        const allRoomsQuery = query(
+          collection(db, 'rooms'),
+          where('roomId', '>=', userId),
+          where('roomId', '<=', userId + '\uf8ff')
+        );
+        const roomsSnapshot = await getDocs(allRoomsQuery);
+        
+        console.log(`🔄 Found ${roomsSnapshot.docs.length} rooms for user in Firestore`);
+        
+        for (const roomDoc of roomsSnapshot.docs) {
+          const roomData = roomDoc.data();
+          const roomId = roomData.roomId;
+          
+          try {
+            // Save room to SQLite
+            await databaseService.saveRoom({
+              id: roomId,
+              roomId: roomId,
+              isTemporary: roomData.isTemporary || false,
+              tempChatId: roomData.tempChatId || null
+            });
+            
+            // Sync all messages for this room
+            await this.syncMessagesFromFirestore(roomId);
+            console.log(`✅ Synced room: ${roomId}`);
+          } catch (roomError) {
+            console.error(`❌ Error syncing room ${roomId}:`, roomError);
+            // Continue with next room
+          }
+        }
+        
+        // Also sync rooms that might have the user as the second participant
+        const alternateRoomsQuery = query(
+          collection(db, 'rooms'),
+          where('roomId', '>=', ''),
+          where('roomId', '<=', '\uf8ff')
+        );
+        const allRoomsSnapshot = await getDocs(alternateRoomsQuery);
+        
+        for (const roomDoc of allRoomsSnapshot.docs) {
+          const roomData = roomDoc.data();
+          const roomId = roomData.roomId;
+          
+          // Check if this room involves the current user
+          if (roomId.includes(userId) && !roomId.startsWith(userId)) {
+            try {
+              await databaseService.saveRoom({
+                id: roomId,
+                roomId: roomId,
+                isTemporary: roomData.isTemporary || false,
+                tempChatId: roomData.tempChatId || null
+              });
+              
+              await this.syncMessagesFromFirestore(roomId);
+              console.log(`✅ Synced alternate room: ${roomId}`);
+            } catch (roomError) {
+              console.error(`❌ Error syncing alternate room ${roomId}:`, roomError);
+            }
+          }
+        }
+        
+      } catch (roomSyncError) {
+        console.error('❌ Error during room sync:', roomSyncError);
+        // Continue with local rooms if Firestore sync fails
+      }
+      
+      // Get all local rooms and try to sync their messages
+      const localRooms = await databaseService.getAllRooms();
+      console.log(`📱 Found ${localRooms.length} local rooms`);
+      
+      for (const room of localRooms) {
         if (room.roomId.includes(userId)) {
-          await this.syncMessagesFromFirestore(room.roomId);
+          try {
+            await this.syncMessagesFromFirestore(room.roomId);
+          } catch (error) {
+            console.error(`❌ Error syncing messages for local room ${room.roomId}:`, error);
+          }
         }
       }
       
       // Sync any unsynced messages to Firestore
       await this.syncMessagesToFirestore();
       
-      console.log('✅ Full sync completed for user:', userId);
+      // Show final statistics
+      const dbSize = await databaseService.getDatabaseSize();
+      console.log('📊 Final database content after sync:', dbSize);
+      console.log('✅ Enhanced full sync completed for user:', userId);
+      
     } catch (error) {
-      console.error('❌ Error during full sync:', error);
+      console.error('❌ Error during enhanced full sync:', error);
+      // Even if sync fails, ensure user can access local data
+      try {
+        const dbSize = await databaseService.getDatabaseSize();
+        console.log('📊 Local database content (fallback):', dbSize);
+      } catch (dbError) {
+        console.error('❌ Error accessing local database:', dbError);
+      }
     }
   }
 

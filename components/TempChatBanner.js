@@ -45,29 +45,75 @@ export default function TempChatBanner({ tempChatId, otherUserId, onContactSaved
     };
 
     return (
-        <View className="bg-yellow-100 border-b border-yellow-300 px-4 py-3">
-            <Text style={{ fontSize: hp(1.6) }} className="text-center text-yellow-800 mb-3">
-                This is a temporary chat. Choose an option below:
+        <View 
+            style={{
+                backgroundColor: '#fff3cd',
+                borderBottomWidth: 1,
+                borderBottomColor: '#ffeaa7',
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 3,
+                elevation: 2,
+            }}
+        >
+            <Text 
+                style={{ 
+                    fontSize: hp(1.6), 
+                    color: '#856404',
+                    textAlign: 'center',
+                    marginBottom: 12,
+                    fontWeight: '500',
+                    lineHeight: hp(2.2)
+                }}
+            >
+                🔒 This is a temporary chat. Choose an option:
             </Text>
 
             <View className="flex-row justify-center gap-3">
                 <TouchableOpacity
                     onPress={handleRemainForFuture}
-                    style={{ height: hp(4), paddingHorizontal: 16 }}
-                    className="bg-green-600 justify-center items-center rounded-lg"
+                    style={{ 
+                        height: hp(4.2), 
+                        paddingHorizontal: 20,
+                        backgroundColor: '#28a745',
+                        borderRadius: 12,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        shadowColor: '#28a745',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 4,
+                        elevation: 3,
+                    }}
+                    activeOpacity={0.8}
                 >
-                    <Text style={{ fontSize: hp(1.6) }} className="text-white font-semibold">
-                        Remain for Future
+                    <Text style={{ fontSize: hp(1.6), color: 'white', fontWeight: '600' }}>
+                        💾 Save Contact
                     </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                     onPress={handleLeaveChat}
-                    style={{ height: hp(4), paddingHorizontal: 16 }}
-                    className="bg-red-600 justify-center items-center rounded-lg"
+                    style={{ 
+                        height: hp(4.2), 
+                        paddingHorizontal: 20,
+                        backgroundColor: '#dc3545',
+                        borderRadius: 12,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        shadowColor: '#dc3545',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 4,
+                        elevation: 3,
+                    }}
+                    activeOpacity={0.8}
                 >
-                    <Text style={{ fontSize: hp(1.6) }} className="text-white font-semibold">
-                        Leave Chat
+                    <Text style={{ fontSize: hp(1.6), color: 'white', fontWeight: '600' }}>
+                        🚪 Leave Chat
                     </Text>
                 </TouchableOpacity>
             </View>
