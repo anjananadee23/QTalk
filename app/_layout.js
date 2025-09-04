@@ -20,7 +20,7 @@ const MainLayout = () => {
     } else if (isAuthenticated === false) {
       router.replace('/signIn');
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, router, segments])
 
   return <Slot />
 }

@@ -35,7 +35,7 @@ export default function TempChatBanner({ tempChatId, otherUserId, onContactSaved
                         try {
                             await deleteTemporaryChat(tempChatId);
                             onChatLeft?.();
-                        } catch (error) {
+                        } catch (_error) {
                             Alert.alert('Error', 'Failed to leave chat');
                         }
                     }

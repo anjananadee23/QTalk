@@ -1,0 +1,61 @@
+const { getDefaultConfig } = require('expo/metro-config');
+
+module.exports = ({ config }) => {
+  return {
+    ...config,
+    name: 'QTalk',
+    slug: 'QTalk',
+    version: '1.0.0',
+    orientation: 'portrait',
+    icon: './assets/images/qtalk-logo.png',
+    scheme: 'qtalk',
+    userInterfaceStyle: 'automatic',
+    newArchEnabled: true,
+    ios: {
+      supportsTablet: true,
+    },
+    android: {
+      adaptiveIcon: {
+        foregroundImage: './assets/images/qtalk-logo.png',
+        backgroundColor: '#ffffff',
+      },
+      edgeToEdgeEnabled: true,
+      permissions: [
+        'android.permission.CAMERA',
+        'android.permission.RECORD_AUDIO',
+      ],
+      package: 'com.malith.qtalk',
+    },
+    web: {
+      bundler: 'metro',
+      output: 'static',
+      favicon: './assets/images/qtalk-logo.png',
+    },
+    plugins: [
+      'expo-router',
+      [
+        'expo-splash-screen',
+        {
+          image: './assets/images/qtalk-logo.png',
+          imageWidth: 200,
+          resizeMode: 'contain',
+          backgroundColor: '#ffffff',
+        },
+      ],
+      [
+        'expo-camera',
+        {
+          cameraPermission: 'Allow QTalk to access camera to scan QR codes for connecting with other users.',
+        },
+      ],
+    ],
+    experiments: {
+      typedRoutes: true,
+    },
+    updates: {
+      enabled: false,
+      checkAutomatically: 'ON_ERROR_RECOVERY',
+      fallbackToCacheTimeout: 0,
+    },
+  };
+};

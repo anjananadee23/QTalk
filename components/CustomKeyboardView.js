@@ -1,4 +1,4 @@
-import { View, Text, KeyboardAvoidingView, ScrollView, Platform } from 'react-native'
+import { KeyboardAvoidingView, ScrollView, Platform } from 'react-native'
 import React from 'react'
 
 const android = Platform.OS === 'android';

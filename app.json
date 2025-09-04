@@ -16,7 +16,12 @@
         "foregroundImage": "./assets/images/qtalk-logo.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.malith.qtalk"
     },
     "web": {
       "bundler": "metro",
@@ -43,6 +48,17 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "updates": {
+      "enabled": false,
+      "checkAutomatically": "ON_ERROR_RECOVERY",
+      "fallbackToCacheTimeout": 0
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d29ff267-ab16-4791-b0ad-a56364f397cb"
+      }
     }
   }
 }

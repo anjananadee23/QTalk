@@ -6,35 +6,21 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import ChatList from '../../components/ChatList';
-import ConnectionStatus from '../../components/ConnectionStatus';
 import QRGenerator from '../../components/QRGenerator';
 import QRScanner from '../../components/QRScanner';
 import { useAuth } from '../../context/authContext';
 import { db, usersRef } from '../../firebaseConfig';
-import { useOfflineContacts } from '../../hooks/useOfflineContacts';
 import { getSavedContacts } from '../../utils/qrService';
 
 export default function Home() {
   const { user } = useAuth();
-  const [firebaseUsers, setFirebaseUsers] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showQROptions, setShowQROptions] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showQRGenerator, setShowQRGenerator] = useState(false);
 
-  // Use offline contacts hook
-  const {
-    contacts: users,
-    isConnected
-  } = useOfflineContacts(firebaseUsers);
-
   const getSavedUsers = React.useCallback(async () => {
-    if (!isConnected) {
-      console.log('📱 Offline - loading contacts from local storage');
-      setLoading(false);
-      return;
-    }
-
     // Function to find users who have sent messages to the current user
     const getUsersWhoMessagedMe = async () => {
       try {
@@ -84,7 +70,7 @@ export default function Home() {
       const allContactIds = [...new Set([...savedContactIds, ...usersWhoMessagedMe])];
 
       if (allContactIds.length === 0) {
-        setFirebaseUsers([]);
+        setUsers([]);
         setLoading(false);
         return;
       }
@@ -98,14 +84,14 @@ export default function Home() {
         data.push({ ...doc.data() });
       });
 
-      setFirebaseUsers(data);
+      setUsers(data);
     } catch (error) {
       console.error('Error getting users:', error);
-      setFirebaseUsers([]);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
-  }, [user.uid, isConnected]);
+  }, [user.uid]);
 
   useEffect(() => {
     if (user?.uid) {
@@ -140,7 +126,6 @@ export default function Home() {
   return (
     <View className="flex-1 bg-telegram-lighter">
       <StatusBar style="light" />
-      <ConnectionStatus />
 
       {loading ? (
         <View className="flex items-center justify-center flex-1">

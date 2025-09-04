@@ -9,21 +9,28 @@ import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
 export default function ChatItem({ item, router, noBorder, currentUser }) {
 
     const [lastMessage, setLastMessage] = useState(undefined);
+    
     useEffect(() => {
-
         let roomId = getRoomId(currentUser?.userId, item?.userId);
+
+        // Use Firebase real-time listener
         const docRef = doc(db, "rooms", roomId);
         const messagesRef = collection(docRef, "messages");
         const q = query(messagesRef, orderBy("createdAt", "desc"));
 
-        let unsub = onSnapshot(q, (snapshot) => {
+        const unsubscribe = onSnapshot(q, (snapshot) => {
             let allMessages = snapshot.docs.map(doc => {
                 return doc.data();
             });
             setLastMessage(allMessages[0] ? allMessages[0] : null);
+        }, (error) => {
+            console.log('ChatItem Firebase listener error:', error);
+            setLastMessage(null);
         });
 
-        return unsub;
+        return () => {
+            unsubscribe();
+        };
 
     }, [currentUser?.userId, item?.userId]);
 

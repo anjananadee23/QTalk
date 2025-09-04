@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
+import NetworkStatus from './NetworkStatus';
 
 export default function ChatRoomHeader({ user, router }) {
     console.log('=== ChatRoomHeader Debug ===');
@@ -16,6 +17,9 @@ export default function ChatRoomHeader({ user, router }) {
                     headerShown: false
                 }}
             />
+
+            {/* Network Status */}
+            <NetworkStatus />
 
             {/* Telegram-style Header */}
             <View

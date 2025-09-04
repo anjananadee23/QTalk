@@ -2,6 +2,8 @@ import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndP
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../firebaseConfig';
+import databaseService from '../utils/database';
+import syncService from '../utils/syncService';
 
 export const AuthContext = createContext();
 
@@ -10,12 +12,31 @@ export const AuthContextProvider = ({ children }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(undefined);
 
     useEffect(() => {
-        const unsub = onAuthStateChanged(auth, (user) => {
+        // Initialize SQLite and sync service
+        const initializeServices = async () => {
+            try {
+                await syncService.initialize();
+                console.log('✅ Services initialized in AuthContext');
+            } catch (error) {
+                console.error('❌ Error initializing services:', error);
+            }
+        };
+
+        initializeServices();
+
+        const unsub = onAuthStateChanged(auth, async (user) => {
             // console.log('got user: ', user);
             if (user) {
                 setIsAuthenticated(true);
                 setUser(user);
-                updateUserData(user.uid);
+                await updateUserData(user.uid);
+                
+                // Perform full sync when user logs in
+                try {
+                    await syncService.fullSyncForUser(user.uid);
+                } catch (error) {
+                    console.error('❌ Error during full sync:', error);
+                }
             } else {
                 setIsAuthenticated(false);
                 setUser(null);
@@ -25,12 +46,48 @@ export const AuthContextProvider = ({ children }) => {
     }, []);
 
     const updateUserData = async (userId) => {
-        const docRef = doc(db, 'users', userId);
-        const docSnap = await getDoc(docRef);
+        try {
+            // Try to get user data from SQLite first
+            let userData = await databaseService.getUser(userId);
+            
+            if (!userData) {
+                // If not in SQLite, get from Firestore and save to SQLite
+                const docRef = doc(db, 'users', userId);
+                const docSnap = await getDoc(docRef);
 
-        if (docSnap.exists()) {
-            let data = docSnap.data();
-            setUser(prevUser => ({ ...prevUser, username: data.username, profileUrl: data.profileUrl, userId: data.userId }));
+                if (docSnap.exists()) {
+                    let data = docSnap.data();
+                    userData = {
+                        id: data.userId,
+                        username: data.username,
+                        profileUrl: data.profileUrl,
+                        email: data.email
+                    };
+                    
+                    // Save to SQLite for future use
+                    await databaseService.saveUser(userData);
+                }
+            }
+
+            if (userData) {
+                setUser(prevUser => ({ 
+                    ...prevUser, 
+                    username: userData.username, 
+                    profileUrl: userData.profileUrl, 
+                    userId: userData.id 
+                }));
+            }
+        } catch (error) {
+            console.error('❌ Error updating user data:', error);
+            
+            // Fallback to original Firestore method
+            const docRef = doc(db, 'users', userId);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                let data = docSnap.data();
+                setUser(prevUser => ({ ...prevUser, username: data.username, profileUrl: data.profileUrl, userId: data.userId }));
+            }
         }
     }
 
@@ -54,6 +111,15 @@ export const AuthContextProvider = ({ children }) => {
             };
 
             await updateDoc(userDocRef, updateFields);
+
+            // Update SQLite
+            const userData = {
+                id: currentUser.uid,
+                username: updateData.username,
+                profileUrl: updateData.profileUrl,
+                email: currentUser.email
+            };
+            await databaseService.saveUser(userData);
 
             // Update local state
             await updateUserData(currentUser.uid);
@@ -99,6 +165,15 @@ export const AuthContextProvider = ({ children }) => {
                 profileUrl,
                 userId: response?.user?.uid
             });
+
+            // Save user to SQLite
+            await databaseService.saveUser({
+                id: response?.user?.uid,
+                username,
+                profileUrl,
+                email: response?.user?.email
+            });
+
             return { success: true, data: response?.user };
         } catch (e) {
             let msg = e.message;

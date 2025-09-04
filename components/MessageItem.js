@@ -1,6 +1,58 @@
 import { Text, View } from 'react-native';
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 
+// Format message timestamp
+const formatMessageTime = (createdAt) => {
+    if (!createdAt) return '';
+    
+    let date;
+    // Handle different timestamp formats
+    if (createdAt?.seconds) {
+        // Firebase timestamp format
+        date = new Date(createdAt.seconds * 1000);
+    } else if (typeof createdAt === 'string') {
+        // ISO string format
+        date = new Date(createdAt);
+    } else {
+        // Already a Date object
+        date = new Date(createdAt);
+    }
+    
+    const now = new Date();
+    const messageDate = new Date(date);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const messageDay = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
+    
+    const timeString = messageDate.toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+    });
+    
+    if (messageDay.getTime() === today.getTime()) {
+        // Today - show only time
+        return timeString;
+    } else if (messageDay.getTime() === yesterday.getTime()) {
+        // Yesterday - show "Yesterday HH:MM"
+        return `Yesterday ${timeString}`;
+    } else if (messageDate.getFullYear() === now.getFullYear()) {
+        // This year - show "Mon DD HH:MM"
+        return messageDate.toLocaleDateString([], { 
+            month: 'short', 
+            day: 'numeric' 
+        }) + ` ${timeString}`;
+    } else {
+        // Different year - show "MM/DD/YY HH:MM"
+        return messageDate.toLocaleDateString([], { 
+            month: '2-digit', 
+            day: '2-digit', 
+            year: '2-digit' 
+        }) + ` ${timeString}`;
+    }
+};
+
 export default function MessageItem({ message, currentUser }) {
     console.log('MessageItem Debug:', {
         messageText: message?.text,
@@ -43,7 +95,7 @@ export default function MessageItem({ message, currentUser }) {
                                     color: '#666666'
                                 }}
                             >
-                                {new Date(message?.createdAt?.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                {formatMessageTime(message?.createdAt)}
                             </Text>
                         </View>
                     </View>
@@ -82,7 +134,7 @@ export default function MessageItem({ message, currentUser }) {
                                 color: '#666666'
                             }}
                         >
-                            {new Date(message?.createdAt?.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            {formatMessageTime(message?.createdAt)}
                         </Text>
                     </View>
                 </View>

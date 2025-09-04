@@ -61,7 +61,7 @@ export default function HomeHeader() {
                                     shadowOpacity: 0.15,
                                     shadowOffset: { width: 0, height: 4 },
                                     shadowRadius: 8,
-                                    width: 160,
+                                    width: 180,
                                     elevation: 8,
                                 }
                             }}>

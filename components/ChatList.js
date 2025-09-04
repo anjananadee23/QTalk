@@ -13,7 +13,7 @@ export default function ChatList({ users, currentUser }) {
                 keyExtractor={item => Math.random()}
                 showsVerticalScrollIndicator={false}
                 renderItem={({ item, index }) => <ChatItem
-                    noBorder={index + 1 == users.length}
+                    noBorder={index + 1 === users.length}
                     router={router}
                     currentUser={currentUser}
                     item={item}
