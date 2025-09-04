@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "324050712785",
+    "project_id": "qtalk-9f701",
+    "storage_bucket": "qtalk-9f701.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:324050712785:android:4fe7fa0efe2b54641b6df0",
+        "android_client_info": {
+          "package_name": "com.malith.qtalk"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "324050712785-placeholder.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCDGGpbAkHWBywi2F9jSPZkoJ9HmdxUbOs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "324050712785-placeholder.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

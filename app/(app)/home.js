@@ -257,7 +257,7 @@ export default function Home() {
       ) : (
         <View className="flex items-center justify-center flex-1 px-8">
           {/* Add notification test component for testing */}
-          {/* <NotificationTest /> */}
+          <NotificationTest />
           
           {/* Empty state illustration */}
           <View 

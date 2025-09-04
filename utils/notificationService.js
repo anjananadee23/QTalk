@@ -48,10 +48,13 @@ class NotificationService {
 
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
+        name: 'QTalk Messages',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#FF231F7C',
+        sound: 'default',
+        enableVibrate: true,
+        enableLights: true,
       });
     }
 
@@ -70,20 +73,33 @@ class NotificationService {
       }
       
       try {
-        token = await Notifications.getExpoPushTokenAsync({
-          projectId: 'd29ff267-ab16-4791-b0ad-a56364f397cb' // Your project ID from app.json extra.eas.projectId
+        // For standalone apps, use the project ID from app.json
+        const tokenData = await Notifications.getExpoPushTokenAsync({
+          projectId: 'd29ff267-ab16-4791-b0ad-a56364f397cb'
         });
         
-        this.expoPushToken = token.data;
-        console.log('✅ Push token obtained:', token.data);
+        token = tokenData.data;
+        this.expoPushToken = token;
+        console.log('✅ Push token obtained:', token);
         
         // Store token in AsyncStorage
-        await AsyncStorage.setItem('expoPushToken', token.data);
+        await AsyncStorage.setItem('expoPushToken', token);
         
-        return token.data;
+        return token;
       } catch (error) {
         console.error('❌ Error getting push token:', error);
-        return null;
+        
+        // Fallback: try getting device push token for standalone apps
+        try {
+          const deviceToken = await Notifications.getDevicePushTokenAsync();
+          console.log('🔄 Using device push token as fallback:', deviceToken);
+          this.expoPushToken = deviceToken.data;
+          await AsyncStorage.setItem('expoPushToken', deviceToken.data);
+          return deviceToken.data;
+        } catch (fallbackError) {
+          console.error('❌ Fallback token also failed:', fallbackError);
+          return null;
+        }
       }
     } else {
       console.log('Must use physical device for Push Notifications');
@@ -122,11 +138,12 @@ class NotificationService {
 
   // Send push notification
   async sendPushNotification(expoPushToken, title, body, data = {}) {
-    // Add URL scheme data for standalone app
+    // Enhanced data for standalone app compatibility
     const enhancedData = {
       ...data,
       url: `qtalk://chat/${data.roomId || 'default'}`,
-      experienceId: '@malith/qtalk', // Replace with your actual Expo username/slug
+      experienceId: '@anonymous/qtalk-d29ff267-ab16-4791-b0ad-a56364f397cb',
+      scopeKey: '@anonymous/qtalk-d29ff267-ab16-4791-b0ad-a56364f397cb',
     };
 
     const message = {
@@ -137,6 +154,18 @@ class NotificationService {
       data: enhancedData,
       priority: 'high',
       channelId: 'default',
+      // Additional properties for better standalone app support
+      badge: 1,
+      android: {
+        channelId: 'default',
+        sound: 'default',
+        priority: 'max',
+        vibrate: [0, 250, 250, 250],
+      },
+      ios: {
+        sound: 'default',
+        badge: 1,
+      },
     };
 
     try {

@@ -47,9 +47,27 @@ export default function NotificationTest() {
         }
     };
 
+    const handleRegisterToken = async () => {
+        try {
+            const token = await notificationService.registerForPushNotificationsAsync();
+            if (token) {
+                Alert.alert('Success', `Push token registered: ${token.substring(0, 50)}...`);
+                if (user?.uid) {
+                    await notificationService.updateUserPushToken(user.uid, token);
+                    Alert.alert('Updated', 'Token updated in Firestore!');
+                }
+            } else {
+                Alert.alert('Failed', 'Could not get push token');
+            }
+        } catch (error) {
+            console.error('Error registering token:', error);
+            Alert.alert('Error', 'Failed to register push token: ' + error.message);
+        }
+    };
+
     return (
         <View className="p-4 border border-gray-300 rounded-lg m-4 bg-white">
-            {/* <Text 
+            <Text 
                 className="text-lg font-semibold mb-3 text-center" 
                 style={{ fontSize: hp(2.2) }}
             >
@@ -92,12 +110,24 @@ export default function NotificationTest() {
                 </Text>
             </TouchableOpacity>
 
+            <TouchableOpacity
+                onPress={handleRegisterToken}
+                className="bg-orange-500 px-4 py-3 rounded-lg mb-3"
+            >
+                <Text 
+                    className="text-white text-center font-medium"
+                    style={{ fontSize: hp(1.8) }}
+                >
+                    Register New Token
+                </Text>
+            </TouchableOpacity>
+
             <Text 
                 className="text-xs text-gray-600 text-center mt-2"
                 style={{ fontSize: hp(1.4) }}
             >
                 User ID: {user?.userId || 'Not logged in'}
-            </Text> */}
+            </Text>
         </View>
     );
 }

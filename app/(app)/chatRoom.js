@@ -1,12 +1,12 @@
-import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { addDoc, collection, doc, getDoc, onSnapshot, orderBy, query, setDoc, Timestamp } from 'firebase/firestore';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Keyboard, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Keyboard, Text, View } from 'react-native';
 import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import ChatRoomHeader from '../../components/ChatRoomHeader';
 import CustomKeyboardView from '../../components/CustomKeyboardView';
+import FlexibleMessageInput from '../../components/FlexibleMessageInput';
 import MessageList from '../../components/MessageList';
 import TempChatBanner from '../../components/TempChatBanner';
 import { useAuth } from '../../context/authContext';
@@ -23,8 +23,6 @@ export default function ChatRoom() {
     const router = useRouter();
     const [messages, setMessages] = useState([]);
     const [duplicateWarning, setDuplicateWarning] = useState('');
-    const textRef = useRef('');
-    const inputRef = useRef(null);
     const scrollViewRef = useRef(null);
 
     // Check if this is a temporary chat
@@ -311,8 +309,8 @@ export default function ChatRoom() {
         }
     };
 
-    const handleSendMessage = async () => {
-        let message = textRef.current.trim();
+    const handleSendMessage = async (messageText) => {
+        let message = messageText.trim();
         if (!message) return;
 
         try {
@@ -346,9 +344,7 @@ export default function ChatRoom() {
                 setDuplicateWarning(warningMessage);
                 setTimeout(() => setDuplicateWarning(''), 3000);
                 
-                // Clear input but don't send message
-                textRef.current = "";
-                if (inputRef) inputRef?.current.clear();
+                // Message not sent due to duplicate
                 return;
             }
 
@@ -363,10 +359,6 @@ export default function ChatRoom() {
                 senderName: user?.username,
                 createdAt: now
             };
-
-            // Clear input immediately
-            textRef.current = "";
-            if (inputRef) inputRef?.current.clear();
 
             // Save message to SQLite first for immediate display
             await databaseService.saveMessage({
@@ -447,12 +439,6 @@ export default function ChatRoom() {
         } catch (err) {
             console.log('❌ Error saving message:', err);
             Alert.alert('Error', 'Failed to send message. Please try again.');
-            
-            // Restore message text
-            textRef.current = message;
-            if (inputRef?.current) {
-                inputRef.current.setNativeProps({ text: message });
-            }
         }
     }
 
@@ -547,73 +533,12 @@ export default function ChatRoom() {
                         </View>
                     )}
                     
-                    {/* Message Input Bar - Enhanced */}
-                    <View 
-                        style={{
-                            paddingHorizontal: 16,
-                            paddingVertical: 12,
-                            backgroundColor: '#ffffff',
-                            borderTopWidth: 1,
-                            borderTopColor: 'rgba(0, 0, 0, 0.05)',
-                        }}
-                    >
-                        <View 
-                            style={{
-                                flexDirection: 'row',
-                                alignItems: 'flex-end',
-                                backgroundColor: '#f8f9fa',
-                                borderRadius: 24,
-                                paddingHorizontal: 16,
-                                paddingVertical: 8,
-                                borderWidth: 1.5,
-                                borderColor: 'rgba(0, 136, 204, 0.1)',
-                                minHeight: hp(5.5),
-                                shadowColor: '#000',
-                                shadowOffset: { width: 0, height: 1 },
-                                shadowOpacity: 0.05,
-                                shadowRadius: 4,
-                                elevation: 2,
-                            }}
-                        >
-                            <TextInput
-                                ref={inputRef}
-                                onChangeText={value => textRef.current = value}
-                                placeholder='Type a message...'
-                                style={{
-                                    fontSize: hp(1.9),
-                                    flex: 1,
-                                    paddingVertical: hp(0.8),
-                                    paddingRight: 8,
-                                    maxHeight: hp(12),
-                                    color: '#2c3e50',
-                                    lineHeight: hp(2.4)
-                                }}
-                                placeholderTextColor={'#7f8c8d'}
-                                multiline
-                                textAlignVertical="top"
-                            />
-                            <TouchableOpacity 
-                                onPress={handleSendMessage} 
-                                style={{
-                                    width: hp(4.2),
-                                    height: hp(4.2),
-                                    borderRadius: hp(2.1),
-                                    backgroundColor: '#0088CC',
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                    marginLeft: 8,
-                                    shadowColor: '#0088CC',
-                                    shadowOffset: { width: 0, height: 2 },
-                                    shadowOpacity: 0.3,
-                                    shadowRadius: 4,
-                                    elevation: 4,
-                                }}
-                                activeOpacity={0.8}
-                            >
-                                <Feather name="send" size={hp(2)} color="white" />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+                    {/* Flexible Message Input - Responsive for All Devices */}
+                    <FlexibleMessageInput 
+                        onSendMessage={handleSendMessage}
+                        placeholder="Type a message..."
+                        disabled={false}
+                    />
                 </View>
             </View>
         </CustomKeyboardView>
