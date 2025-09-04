@@ -63,14 +63,14 @@ export default function NetworkStatus() {
     }
   };
 
-  const getSqliteStatusText = () => {
-    switch (sqliteStatus) {
-      case 'ready': return '💾 SQLite Ready';
-      case 'initializing': return '⏳ Initializing SQLite...';
-      case 'error': return '❌ SQLite Error';
-      default: return '💾 SQLite Unknown';
-    }
-  };
+  // const getSqliteStatusText = () => {
+  //   switch (sqliteStatus) {
+  //     case 'ready': return '💾 SQLite Ready';
+  //     case 'initializing': return '⏳ Initializing SQLite...';
+  //     case 'error': return '❌ SQLite Error';
+  //     default: return '💾 SQLite Unknown';
+  //   }
+  // };
 
   const getTotalMessages = () => {
     return dbStats.messages || 0;
@@ -89,19 +89,17 @@ export default function NetworkStatus() {
 
   return (
     <TouchableOpacity 
-      style={[styles.container, { backgroundColor: !isConnected ? '#ff6b6b' : getSqliteStatusColor() }]}
-      onPress={() => setShowDetails(!showDetails)}
-      activeOpacity={0.8}
+     
     >
       <View style={styles.statusRow}>
         <Text style={styles.text}>
-          {!isConnected ? '📱 Working offline' : getSqliteStatusText()}
+          {' Working offline' }
         </Text>
-        {(sqliteStatus === 'ready' || !isConnected) && (
+        {/* {(sqliteStatus === 'ready' || !isConnected) && (
           <Text style={styles.toggleText}>
             {showDetails ? '▲' : '▼'}
           </Text>
-        )}
+        )} */}
       </View>
       
       {showDetails && (
@@ -117,7 +115,7 @@ export default function NetworkStatus() {
             <View style={styles.statusItem}>
               <Text style={styles.statusLabel}>SQLite:</Text>
               <Text style={styles.statusValue}>
-                {getSqliteStatusText()}
+                {/* {getSqliteStatusText()} */}
               </Text>
             </View>
           </View>

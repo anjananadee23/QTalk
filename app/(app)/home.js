@@ -393,19 +393,7 @@ export default function Home() {
             }}
           >
             <View style={{ alignItems: 'center', marginBottom: 24 }}>
-              <View 
-                style={{
-                  width: 60,
-                  height: 60,
-                  borderRadius: 30,
-                  backgroundColor: '#e3f2fd',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  marginBottom: 12
-                }}
-              >
-                <Text style={{ fontSize: 24 }}>📱</Text>
-              </View>
+              
               <Text 
                 style={{ 
                   fontSize: hp(2.4), 
@@ -436,7 +424,7 @@ export default function Home() {
               activeOpacity={0.8}
             >
               <Text style={{ fontSize: hp(1.9), color: 'white', fontWeight: '600' }}>
-                📷 Scan QR Code
+                 Scan QR Code
               </Text>
             </TouchableOpacity>
 
@@ -458,7 +446,7 @@ export default function Home() {
               activeOpacity={0.8}
             >
               <Text style={{ fontSize: hp(1.9), color: 'white', fontWeight: '600' }}>
-                🔗 Show My QR Code
+                 Show My QR Code
               </Text>
             </TouchableOpacity>
 
