@@ -280,8 +280,8 @@ export default function Home() {
         </View>
       ) : (
         <View className="flex items-center justify-center flex-1 px-8">
-          <NotificationStatus />
-          <NotificationTest />
+          {/* <NotificationStatus />
+          <NotificationTest /> */}
           
           {/* Empty state illustration */}
           <View 
