@@ -35,15 +35,50 @@ export const AuthContextProvider = ({ children }) => {
                 setUser(user);
                 await updateUserData(user.uid);
                 
-                // Initialize notifications
-                try {
-                    const pushToken = await notificationService.registerForPushNotificationsAsync();
-                    if (pushToken) {
-                        await notificationService.updateUserPushToken(user.uid, pushToken);
+                // Initialize notifications with retry mechanism
+                const initializeNotifications = async (retries = 3) => {
+                    for (let i = 0; i < retries; i++) {
+                        try {
+                            console.log(`🔔 Initializing notifications (attempt ${i + 1}/${retries})...`);
+                            
+                            // First, try to get stored token
+                            let pushToken = await notificationService.getStoredPushToken();
+                            
+                            // If no stored token or token is old, register new one
+                            if (!pushToken) {
+                                console.log('🔄 No stored token found, registering new one...');
+                                pushToken = await notificationService.registerForPushNotificationsAsync();
+                            } else {
+                                console.log('✅ Using stored push token:', pushToken.substring(0, 50) + '...');
+                            }
+                            
+                            if (pushToken) {
+                                console.log('🔄 Updating user push token in Firestore...');
+                                await notificationService.updateUserPushToken(user.uid, pushToken);
+                                console.log('✅ Push token updated successfully');
+                                break; // Success, exit retry loop
+                            } else {
+                                console.log(`❌ Failed to get push token (attempt ${i + 1})`);
+                                if (i === retries - 1) {
+                                    console.error('❌ Failed to initialize notifications after all retries');
+                                }
+                            }
+                        } catch (error) {
+                            console.error(`❌ Notification initialization error (attempt ${i + 1}):`, error);
+                            if (i === retries - 1) {
+                                console.error('❌ Notification initialization failed permanently');
+                            } else {
+                                // Wait before retry
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+                            }
+                        }
                     }
-                } catch (error) {
-                    console.error('❌ Error initializing notifications:', error);
-                }
+                };
+                
+                // Initialize notifications but don't block auth process
+                initializeNotifications().catch(error => {
+                    console.error('❌ Non-blocking notification initialization error:', error);
+                });
                 
                 // Perform full sync when user logs in
                 try {

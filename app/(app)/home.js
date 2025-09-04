@@ -7,6 +7,7 @@ import { ActivityIndicator, Modal, Text, TouchableOpacity, View } from 'react-na
 import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import ChatList from '../../components/ChatList';
 import NotificationStatus from '../../components/NotificationStatus';
+import NotificationTest from '../../components/NotificationTest';
 import QRGenerator from '../../components/QRGenerator';
 import QRScanner from '../../components/QRScanner';
 import { useAuth } from '../../context/authContext';
@@ -280,6 +281,7 @@ export default function Home() {
       ) : (
         <View className="flex items-center justify-center flex-1 px-8">
           <NotificationStatus />
+          <NotificationTest />
           
           {/* Empty state illustration */}
           <View 

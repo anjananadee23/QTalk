@@ -65,11 +65,47 @@ const MainLayout = () => {
   useEffect(() => {
     // Set up notification listeners when component mounts
     if (isAuthenticated) {
+      console.log('🔔 Setting up notification listeners for authenticated user...');
       notificationService.setupNotificationListeners(router);
+      
+      // Enhanced notification initialization for standalone apps
+      const initializeNotificationsOnAppStart = async () => {
+        try {
+          console.log('🔄 Initializing notifications for standalone app...');
+          
+          // Force re-registration of push token for standalone apps
+          const token = await notificationService.registerForPushNotificationsAsync();
+          if (token && isAuthenticated.uid) {
+            await notificationService.updateUserPushToken(isAuthenticated.uid, token);
+            console.log('✅ Push token initialized on app start');
+          } else if (!token) {
+            console.log('⚠️ No push token obtained on app start');
+            
+            // Retry after a delay for standalone apps
+            setTimeout(async () => {
+              try {
+                console.log('🔄 Retrying push token registration...');
+                const retryToken = await notificationService.registerForPushNotificationsAsync();
+                if (retryToken && isAuthenticated.uid) {
+                  await notificationService.updateUserPushToken(isAuthenticated.uid, retryToken);
+                  console.log('✅ Push token obtained on retry');
+                }
+              } catch (retryError) {
+                console.error('❌ Push token retry failed:', retryError);
+              }
+            }, 3000);
+          }
+        } catch (error) {
+          console.error('❌ Error initializing notifications on app start:', error);
+        }
+      };
+      
+      initializeNotificationsOnAppStart();
     }
 
     // Cleanup listeners when component unmounts
     return () => {
+      console.log('🧹 Cleaning up notification listeners...');
       notificationService.cleanup();
     };
   }, [isAuthenticated, router]);

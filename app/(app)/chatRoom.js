@@ -411,28 +411,74 @@ export default function ChatRoom() {
                     if (recipientToken) {
                         console.log('✅ Recipient push token found:', recipientToken.substring(0, 50) + '...');
                         
-                        // Send notification with user info
-                        await notificationService.sendMessageNotification(
-                            recipientToken,
-                            user?.username || 'Someone',
-                            message,
-                            {
-                                senderId: user?.userId,
-                                senderName: user?.username,
-                                senderProfileUrl: user?.profileUrl,
-                                roomId: roomId,
-                                userId: item?.userId, // recipient's ID
-                                recipientUsername: item?.username,
-                                isTemporary: isTemporary,
-                                tempChatId: tempChatId
+                        // Verify the token is valid before sending
+                        if (recipientToken.startsWith('ExponentPushToken[') || 
+                            recipientToken.startsWith('exp:') ||
+                            recipientToken.length > 20) { // Basic token validation
+                            
+                            // Send notification with user info
+                            const notificationResult = await notificationService.sendMessageNotification(
+                                recipientToken,
+                                user?.username || 'Someone',
+                                message,
+                                {
+                                    senderId: user?.userId,
+                                    senderName: user?.username,
+                                    senderProfileUrl: user?.profileUrl,
+                                    roomId: roomId,
+                                    userId: item?.userId, // recipient's ID
+                                    recipientUsername: item?.username,
+                                    isTemporary: isTemporary,
+                                    tempChatId: tempChatId
+                                }
+                            );
+                            
+                            if (notificationResult) {
+                                console.log('✅ Push notification sent successfully to recipient');
+                            } else {
+                                console.log('⚠️ Push notification may have failed');
                             }
-                        );
-                        console.log('✅ Push notification sent successfully to recipient');
+                        } else {
+                            console.log('❌ Invalid push token format:', recipientToken.substring(0, 30) + '...');
+                        }
                     } else {
                         console.log('⚠️ Recipient has no push token, notification not sent');
+                        
+                        // Try to refresh the recipient's token by checking again
+                        setTimeout(async () => {
+                            try {
+                                console.log('🔄 Retrying to get recipient token after delay...');
+                                const retryToken = await getRecipientPushToken(item?.userId);
+                                if (retryToken && retryToken !== recipientToken) {
+                                    console.log('✅ Found recipient token on retry, sending notification...');
+                                    await notificationService.sendMessageNotification(
+                                        retryToken,
+                                        user?.username || 'Someone',
+                                        message,
+                                        {
+                                            senderId: user?.userId,
+                                            senderName: user?.username,
+                                            senderProfileUrl: user?.profileUrl,
+                                            roomId: roomId,
+                                            userId: item?.userId,
+                                            recipientUsername: item?.username,
+                                            isTemporary: isTemporary,
+                                            tempChatId: tempChatId
+                                        }
+                                    );
+                                }
+                            } catch (retryError) {
+                                console.error('❌ Retry notification error:', retryError);
+                            }
+                        }, 2000);
                     }
                 } catch (notificationError) {
                     console.error('❌ Error sending push notification:', notificationError);
+                    console.error('Notification error details:', {
+                        message: notificationError.message,
+                        code: notificationError.code,
+                        stack: notificationError.stack
+                    });
                     // Don't fail the message sending if notification fails
                 }
             } catch (firebaseError) {

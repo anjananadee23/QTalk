@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -46,7 +47,10 @@ class NotificationService {
   async registerForPushNotificationsAsync() {
     let token;
 
+    console.log('🔄 Starting push token registration...');
+
     if (Platform.OS === 'android') {
+      console.log('📱 Setting up Android notification channels...');
       await Notifications.setNotificationChannelAsync('default', {
         name: 'QTalk Messages',
         importance: Notifications.AndroidImportance.MAX,
@@ -55,53 +59,134 @@ class NotificationService {
         sound: 'default',
         enableVibrate: true,
         enableLights: true,
+        showBadge: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false, // Don't bypass Do Not Disturb by default
       });
+      
+      // Create additional channel for high priority messages
+      await Notifications.setNotificationChannelAsync('high_priority', {
+        name: 'QTalk High Priority',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 500, 250, 500],
+        lightColor: '#FF0000',
+        sound: 'default',
+        enableVibrate: true,
+        enableLights: true,
+        showBadge: true,
+        bypassDnd: false,
+      });
+      
+      console.log('✅ Android notification channels configured');
     }
 
     if (Device.isDevice) {
+      console.log('📱 Checking notification permissions...');
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
       
+      console.log('🔔 Current permission status:', existingStatus);
+      
       if (existingStatus !== 'granted') {
         console.log('🔔 Requesting notification permissions...');
-        const { status } = await Notifications.requestPermissionsAsync();
+        const { status } = await Notifications.requestPermissionsAsync({
+          ios: {
+            allowAlert: true,
+            allowBadge: true,
+            allowSound: true,
+            allowAnnouncements: true,
+            allowCriticalAlerts: false, // Don't request critical alerts unless needed
+            allowProvisional: false,   // Use explicit permission request
+          },
+          android: {
+            allowAlert: true,
+            allowBadge: true,
+            allowSound: true,
+          }
+        });
         finalStatus = status;
-        console.log('🔔 Permission status:', finalStatus);
+        console.log('🔔 New permission status:', finalStatus);
+        
+        if (finalStatus !== 'granted') {
+          console.log('❌ Notification permission request result:', finalStatus);
+        }
       }
       
       if (finalStatus !== 'granted') {
-        console.log('❌ Failed to get push token for push notification! Permission denied.');
+        console.log('❌ Push notification permissions denied');
         return null;
       }
       
       try {
         console.log('🔄 Getting Expo push token...');
-        // For standalone apps, use the project ID from app.json
-        const tokenData = await Notifications.getExpoPushTokenAsync({
-          projectId: 'd29ff267-ab16-4791-b0ad-a56364f397cb'
-        });
+        
+        // Check if we're in Expo Go or standalone app
+        const isExpoGo = Constants?.executionEnvironment === 'standalone' ? false : true;
+        
+        let tokenData;
+        if (isExpoGo) {
+          // For Expo Go development
+          console.log('📱 Running in Expo Go - using development token');
+          tokenData = await Notifications.getExpoPushTokenAsync({
+            projectId: 'd29ff267-ab16-4791-b0ad-a56364f397cb'
+          });
+        } else {
+          // For standalone apps
+          console.log('📱 Running in standalone app');
+          try {
+            // Try Expo push token first
+            tokenData = await Notifications.getExpoPushTokenAsync({
+              projectId: 'd29ff267-ab16-4791-b0ad-a56364f397cb',
+              applicationId: 'com.malith.qtalk'
+            });
+          } catch (expoError) {
+            console.log('⚠️ Expo push token failed, trying device token:', expoError.message);
+            // Use device push token for standalone
+            const deviceToken = await Notifications.getDevicePushTokenAsync();
+            tokenData = { data: deviceToken.data };
+          }
+        }
         
         token = tokenData.data;
         this.expoPushToken = token;
-        console.log('✅ Push token obtained:', token.substring(0, 50) + '...');
+        console.log('✅ Push token obtained:', token ? `${token.substring(0, 50)}...` : 'null');
         
-        // Store token in AsyncStorage
-        await AsyncStorage.setItem('expoPushToken', token);
+        // Validate token format
+        if (token) {
+          const isValidExpoToken = token.startsWith('ExponentPushToken[');
+          const isValidFCMToken = token.length > 100; // FCM tokens are typically longer
+          
+          if (!isValidExpoToken && !isValidFCMToken) {
+            console.log('⚠️ Token format might be invalid:', token.substring(0, 20));
+          }
+          
+          // Store token in AsyncStorage with timestamp
+          await AsyncStorage.setItem('expoPushToken', token);
+          await AsyncStorage.setItem('tokenTimestamp', new Date().toISOString());
+          console.log('✅ Push token stored in AsyncStorage with timestamp');
+        }
         
         return token;
       } catch (error) {
         console.error('❌ Error getting push token:', error);
+        console.error('Error details:', error.code, error.message);
         
-        // Fallback: try getting device push token for standalone apps
+        // Enhanced fallback for standalone apps
         try {
           console.log('🔄 Trying device push token as fallback...');
           const deviceToken = await Notifications.getDevicePushTokenAsync();
-          console.log('🔄 Using device push token as fallback:', deviceToken.data?.substring(0, 50) + '...');
-          this.expoPushToken = deviceToken.data;
-          await AsyncStorage.setItem('expoPushToken', deviceToken.data);
-          return deviceToken.data;
+          
+          if (deviceToken && deviceToken.data) {
+            console.log('✅ Device push token obtained:', deviceToken.data.substring(0, 50) + '...');
+            this.expoPushToken = deviceToken.data;
+            await AsyncStorage.setItem('expoPushToken', deviceToken.data);
+            return deviceToken.data;
+          } else {
+            console.log('❌ Device token is null or invalid');
+            return null;
+          }
         } catch (fallbackError) {
-          console.error('❌ Fallback token also failed:', fallbackError);
+          console.error('❌ Device token fallback also failed:', fallbackError);
           return null;
         }
       }
@@ -142,15 +227,31 @@ class NotificationService {
 
   // Send push notification
   async sendPushNotification(expoPushToken, title, body, data = {}) {
-    // Enhanced data for standalone app compatibility
+    if (!expoPushToken) {
+      console.error('❌ No push token provided for notification');
+      return null;
+    }
+
+    console.log('🔔 Preparing push notification:', {
+      token: expoPushToken.substring(0, 50) + '...',
+      title,
+      body: body.substring(0, 50) + '...',
+      data
+    });
+
+    // Check if this is an Expo push token or device token
+    const isExpoToken = expoPushToken.startsWith('ExponentPushToken[');
+    
+    // Enhanced data for better compatibility
     const enhancedData = {
       ...data,
       url: `qtalk://chat/${data.roomId || 'default'}`,
-      experienceId: '@anonymous/qtalk-d29ff267-ab16-4791-b0ad-a56364f397cb',
-      scopeKey: '@anonymous/qtalk-d29ff267-ab16-4791-b0ad-a56364f397cb',
+      timestamp: new Date().toISOString(),
     };
 
-    const message = {
+    // Different message format based on token type
+    const message = isExpoToken ? {
+      // Expo push token format
       to: expoPushToken,
       sound: 'default',
       title: title,
@@ -158,7 +259,6 @@ class NotificationService {
       data: enhancedData,
       priority: 'high',
       channelId: 'default',
-      // Additional properties for better standalone app support
       badge: 1,
       android: {
         channelId: 'default',
@@ -170,9 +270,37 @@ class NotificationService {
         sound: 'default',
         badge: 1,
       },
+    } : {
+      // Device token format (for standalone apps)
+      to: expoPushToken,
+      notification: {
+        title: title,
+        body: body,
+        sound: 'default',
+      },
+      data: enhancedData,
+      priority: 'high',
+      android: {
+        notification: {
+          channelId: 'default',
+          sound: 'default',
+          priority: 'max',
+          vibrate: [0, 250, 250, 250],
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1,
+          }
+        }
+      }
     };
 
     try {
+      console.log('🔔 Sending notification with message format:', isExpoToken ? 'Expo' : 'FCM');
+      
       const response = await fetch('https://exp.host/--/api/v2/push/send', {
         method: 'POST',
         headers: {
@@ -184,10 +312,36 @@ class NotificationService {
       });
 
       const result = await response.json();
-      console.log('✅ Push notification sent:', result);
+      
+      if (response.ok) {
+        console.log('✅ Push notification sent successfully:', result);
+        
+        // Check for any errors in the response
+        if (result.data && Array.isArray(result.data)) {
+          const errorResult = result.data.find(item => item.status === 'error');
+          if (errorResult) {
+            console.error('❌ Notification error:', errorResult.message, errorResult.details);
+          }
+        }
+      } else {
+        console.error('❌ Push notification failed:', response.status, result);
+      }
+      
       return result;
     } catch (error) {
       console.error('❌ Error sending push notification:', error);
+      
+      // Try alternative FCM endpoint for device tokens
+      if (!isExpoToken) {
+        try {
+          console.log('🔄 Retrying with alternative endpoint...');
+          // You can add FCM direct API call here if needed
+          console.log('⚠️ Alternative endpoint not implemented yet');
+        } catch (retryError) {
+          console.error('❌ Retry also failed:', retryError);
+        }
+      }
+      
       throw error;
     }
   }

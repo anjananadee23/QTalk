@@ -71,19 +71,19 @@ export default function NotificationStatus() {
 
     return (
         <TouchableOpacity
-            onPress={checkNotificationStatus}
-            className="mx-4 mb-2 px-3 py-2 rounded-lg border border-gray-200"
-            style={{
-                backgroundColor: 'white',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.1,
-                shadowRadius: 2,
-                elevation: 2,
-            }}
-            activeOpacity={0.7}
+            // onPress={checkNotificationStatus}
+            // className="mx-4 mb-2 px-3 py-2 rounded-lg border border-gray-200"
+            // style={{
+            //     backgroundColor: 'white',
+            //     shadowColor: '#000',
+            //     shadowOffset: { width: 0, height: 1 },
+            //     shadowOpacity: 0.1,
+            //     shadowRadius: 2,
+            //     elevation: 2,
+            // }}
+            // activeOpacity={0.7}
         >
-            <View className="flex-row items-center justify-between">
+            {/* <View className="flex-row items-center justify-between">
                 <View className="flex-1">
                     <Text
                         style={{
@@ -114,7 +114,7 @@ export default function NotificationStatus() {
                         backgroundColor: getStatusColor()
                     }}
                 />
-            </View>
+            </View> */}
         </TouchableOpacity>
     );
 }
