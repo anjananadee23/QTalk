@@ -1,41 +1,40 @@
-import * as Network from 'expo-network';
+import NetInfo from '@react-native-community/netinfo';
 import { useEffect, useState } from 'react';
 
 export function useNetworkStatus() {
-    const [isConnected, setIsConnected] = useState(true);
-    const [networkType, setNetworkType] = useState('UNKNOWN');
+  const [isConnected, setIsConnected] = useState(true);
+  const [connectionType, setConnectionType] = useState('unknown');
 
-    useEffect(() => {
-        let isActive = true;
+  useEffect(() => {
+    // Get initial network state
+    NetInfo.fetch().then(state => {
+      const connected = state.isConnected && state.isInternetReachable;
+      setIsConnected(connected);
+      setConnectionType(state.type || 'unknown');
+      console.log('📶 Initial network state:', { connected, type: state.type });
+    });
 
-        const checkNetworkStatus = async () => {
-            try {
-                const networkState = await Network.getNetworkStateAsync();
-                
-                if (isActive) {
-                    setIsConnected(networkState.isConnected && networkState.isInternetReachable);
-                    setNetworkType(networkState.type);
-                }
-            } catch (error) {
-                console.error('Error checking network status:', error);
-                if (isActive) {
-                    setIsConnected(false);
-                }
-            }
-        };
+    // Listen for network state changes
+    const unsubscribe = NetInfo.addEventListener(state => {
+      const connected = state.isConnected && state.isInternetReachable;
+      setIsConnected(connected);
+      setConnectionType(state.type || 'unknown');
+      
+      console.log('📶 Network state changed:', { 
+        connected, 
+        type: state.type,
+        isConnected: state.isConnected,
+        isInternetReachable: state.isInternetReachable 
+      });
+    });
 
-        // Check immediately
-        checkNetworkStatus();
+    return () => unsubscribe();
+  }, []);
 
-        // Set up periodic checks
-        const interval = setInterval(checkNetworkStatus, 5000);
-
-        // Cleanup
-        return () => {
-            isActive = false;
-            clearInterval(interval);
-        };
-    }, []);
-
-    return { isConnected, networkType };
+  return {
+    isConnected,
+    connectionType,
+    isOnline: isConnected,
+    isOffline: !isConnected,
+  };
 }

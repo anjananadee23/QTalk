@@ -1,6 +1,7 @@
 import { collection, deleteDoc, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { getRoomId } from './common';
+import databaseService from './database';
 
 export const generateQRData = (userId) => {
     return `qtalk://connect/${userId}`;
@@ -28,13 +29,22 @@ export const createTemporaryChat = async (currentUserId, scannedUserId) => {
     try {
         const tempChatId = `temp_${currentUserId}_${scannedUserId}_${Date.now()}`;
 
-        await setDoc(doc(db, 'temporaryChats', tempChatId), {
+        const tempChatData = {
             tempChatId,
             participants: [currentUserId, scannedUserId],
             createdBy: currentUserId,
             createdAt: new Date(),
             isTemporary: true
-        }, { merge: true }); // Use merge to handle potential conflicts
+        };
+
+        // Save to SQLite first
+        await databaseService.saveTemporaryChat({
+            id: tempChatId,
+            ...tempChatData
+        });
+
+        // Save to Firestore
+        await setDoc(doc(db, 'temporaryChats', tempChatId), tempChatData, { merge: true });
 
         console.log('Temporary chat created successfully:', tempChatId);
         return tempChatId;
@@ -79,12 +89,17 @@ export const saveContactPermanently = async (currentUserId, contactUserId) => {
             authUser: auth.currentUser.uid
         });
 
-        // Only save contact for the current user (no reverse relationship)
-        await setDoc(doc(db, 'savedContacts', contactId), {
+        const contactData = {
             userId: currentUserId,
             contactUserId,
             savedAt: new Date()
-        }, { merge: true });
+        };
+
+        // Save to SQLite first
+        await databaseService.saveContact(currentUserId, contactUserId);
+
+        // Save to Firestore
+        await setDoc(doc(db, 'savedContacts', contactId), contactData, { merge: true });
 
         console.log('Contact saved successfully:', contactId);
 
@@ -105,6 +120,18 @@ export const saveContactPermanently = async (currentUserId, contactUserId) => {
 
 export const getSavedContacts = async (userId) => {
     try {
+        // Ensure database is initialized first
+        await databaseService.ensureInitialized();
+        
+        // Try to get from SQLite first
+        const localContacts = await databaseService.getSavedContacts(userId);
+        
+        if (localContacts && localContacts.length > 0) {
+            console.log('📱 Retrieved contacts from SQLite:', localContacts.length);
+            return localContacts;
+        }
+
+        // If not in SQLite, get from Firestore and sync
         const q = query(
             collection(db, 'savedContacts'),
             where('userId', '==', userId)
@@ -114,12 +141,18 @@ export const getSavedContacts = async (userId) => {
         const contactIds = [];
 
         querySnapshot.forEach(doc => {
-            contactIds.push(doc.data().contactUserId);
+            const contactUserId = doc.data().contactUserId;
+            contactIds.push(contactUserId);
+            // Save to SQLite for future use (non-blocking)
+            databaseService.saveContact(userId, contactUserId).catch(error => {
+                console.error('❌ Error saving contact to SQLite:', error);
+            });
         });
 
+        console.log('🔥 Retrieved contacts from Firestore:', contactIds.length);
         return contactIds;
     } catch (error) {
-        console.error('Error getting saved contacts:', error);
+        console.error('❌ Error getting saved contacts:', error);
         return [];
     }
 };
@@ -138,6 +171,11 @@ export const deleteTemporaryChat = async (tempChatId) => {
 
     try {
         console.log('Attempting to delete temporary chat:', tempChatId);
+        
+        // Delete from SQLite first
+        await databaseService.deleteTemporaryChat(tempChatId);
+        
+        // Delete from Firestore
         await deleteDoc(doc(db, 'temporaryChats', tempChatId));
         console.log('Temporary chat deleted successfully:', tempChatId);
     } catch (error) {

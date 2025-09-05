@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native';
-import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
+import { MenuOption } from 'react-native-popup-menu';
 import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
 
 export const MenuItem = ({text, action, value, icon}) => {

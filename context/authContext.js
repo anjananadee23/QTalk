@@ -2,6 +2,9 @@ import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndP
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../firebaseConfig';
+import databaseService from '../utils/database';
+import notificationService from '../utils/notificationService';
+import syncService from '../utils/syncService';
 
 export const AuthContext = createContext();
 
@@ -10,12 +13,79 @@ export const AuthContextProvider = ({ children }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(undefined);
 
     useEffect(() => {
-        const unsub = onAuthStateChanged(auth, (user) => {
-            // console.log('got user: ', user);
+        // Initialize SQLite and sync service
+        const initializeServices = async () => {
+            try {
+                console.log('🔄 Initializing services in AuthContext...');
+                await syncService.initialize();
+                console.log('✅ Services initialized successfully in AuthContext');
+            } catch (error) {
+                console.error('❌ Error initializing services (non-blocking):', error);
+                // Don't block app startup if services fail to initialize
+                // They will be retried when needed
+            }
+        };
+
+        initializeServices();
+
+        const unsub = onAuthStateChanged(auth, async (user) => {
+            console.log('🔄 Auth state changed:', user ? `User logged in: ${user.email}` : 'User logged out');
             if (user) {
                 setIsAuthenticated(true);
                 setUser(user);
-                updateUserData(user.uid);
+                await updateUserData(user.uid);
+                
+                // Initialize notifications with retry mechanism
+                const initializeNotifications = async (retries = 3) => {
+                    for (let i = 0; i < retries; i++) {
+                        try {
+                            console.log(`🔔 Initializing notifications (attempt ${i + 1}/${retries})...`);
+                            
+                            // First, try to get stored token
+                            let pushToken = await notificationService.getStoredPushToken();
+                            
+                            // If no stored token or token is old, register new one
+                            if (!pushToken) {
+                                console.log('🔄 No stored token found, registering new one...');
+                                pushToken = await notificationService.registerForPushNotificationsAsync();
+                            } else {
+                                console.log('✅ Using stored push token:', pushToken.substring(0, 50) + '...');
+                            }
+                            
+                            if (pushToken) {
+                                console.log('🔄 Updating user push token in Firestore...');
+                                await notificationService.updateUserPushToken(user.uid, pushToken);
+                                console.log('✅ Push token updated successfully');
+                                break; // Success, exit retry loop
+                            } else {
+                                console.log(`❌ Failed to get push token (attempt ${i + 1})`);
+                                if (i === retries - 1) {
+                                    console.error('❌ Failed to initialize notifications after all retries');
+                                }
+                            }
+                        } catch (error) {
+                            console.error(`❌ Notification initialization error (attempt ${i + 1}):`, error);
+                            if (i === retries - 1) {
+                                console.error('❌ Notification initialization failed permanently');
+                            } else {
+                                // Wait before retry
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+                            }
+                        }
+                    }
+                };
+                
+                // Initialize notifications but don't block auth process
+                initializeNotifications().catch(error => {
+                    console.error('❌ Non-blocking notification initialization error:', error);
+                });
+                
+                // Perform full sync when user logs in
+                try {
+                    await syncService.fullSyncForUser(user.uid);
+                } catch (error) {
+                    console.error('❌ Error during full sync:', error);
+                }
             } else {
                 setIsAuthenticated(false);
                 setUser(null);
@@ -25,12 +95,48 @@ export const AuthContextProvider = ({ children }) => {
     }, []);
 
     const updateUserData = async (userId) => {
-        const docRef = doc(db, 'users', userId);
-        const docSnap = await getDoc(docRef);
+        try {
+            // Try to get user data from SQLite first
+            let userData = await databaseService.getUser(userId);
+            
+            if (!userData) {
+                // If not in SQLite, get from Firestore and save to SQLite
+                const docRef = doc(db, 'users', userId);
+                const docSnap = await getDoc(docRef);
 
-        if (docSnap.exists()) {
-            let data = docSnap.data();
-            setUser(prevUser => ({ ...prevUser, username: data.username, profileUrl: data.profileUrl, userId: data.userId }));
+                if (docSnap.exists()) {
+                    let data = docSnap.data();
+                    userData = {
+                        id: data.userId,
+                        username: data.username,
+                        profileUrl: data.profileUrl,
+                        email: data.email
+                    };
+                    
+                    // Save to SQLite for future use
+                    await databaseService.saveUser(userData);
+                }
+            }
+
+            if (userData) {
+                setUser(prevUser => ({ 
+                    ...prevUser, 
+                    username: userData.username, 
+                    profileUrl: userData.profileUrl, 
+                    userId: userData.id 
+                }));
+            }
+        } catch (error) {
+            console.error('❌ Error updating user data:', error);
+            
+            // Fallback to original Firestore method
+            const docRef = doc(db, 'users', userId);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                let data = docSnap.data();
+                setUser(prevUser => ({ ...prevUser, username: data.username, profileUrl: data.profileUrl, userId: data.userId }));
+            }
         }
     }
 
@@ -54,6 +160,15 @@ export const AuthContextProvider = ({ children }) => {
             };
 
             await updateDoc(userDocRef, updateFields);
+
+            // Update SQLite
+            const userData = {
+                id: currentUser.uid,
+                username: updateData.username,
+                profileUrl: updateData.profileUrl,
+                email: currentUser.email
+            };
+            await databaseService.saveUser(userData);
 
             // Update local state
             await updateUserData(currentUser.uid);
@@ -88,22 +203,73 @@ export const AuthContextProvider = ({ children }) => {
     }
     const register = async (email, password, username, profileUrl) => {
         try {
-            const response = await createUserWithEmailAndPassword(auth, email, password);
-            console.log('response.user :', response?.user);
-
-            // setUser(response?.user)
-            // setIsAuthenticated(true);
-
-            await setDoc(doc(db, "users", response?.user?.uid), {
-                username,
-                profileUrl,
-                userId: response?.user?.uid
+            console.log('🔄 Starting registration process in AuthContext...');
+            console.log('📋 Registration data:', { 
+                email, 
+                username, 
+                hasPassword: !!password, 
+                hasProfileUrl: !!profileUrl 
             });
+            
+            const response = await createUserWithEmailAndPassword(auth, email, password);
+            console.log('✅ Firebase user created:', response?.user?.uid);
+
+            // Create user document in Firestore with all necessary fields
+            const userData = {
+                username,
+                profileUrl: profileUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=0088CC&color=fff&size=200`,
+                userId: response?.user?.uid,
+                email: response?.user?.email,
+                createdAt: new Date().toISOString()
+            };
+
+            console.log('🔄 Creating user document in Firestore...');
+            await setDoc(doc(db, "users", response?.user?.uid), userData);
+            console.log('✅ User document created in Firestore');
+
+            // Save user to SQLite
+            try {
+                console.log('🔄 Saving user to SQLite...');
+                await databaseService.ensureInitialized();
+                await databaseService.saveUser({
+                    id: response?.user?.uid,
+                    username,
+                    profileUrl: userData.profileUrl,
+                    email: response?.user?.email
+                });
+                console.log('✅ User saved to SQLite');
+            } catch (sqliteError) {
+                console.error('❌ SQLite save error (non-blocking):', sqliteError);
+                // Don't fail registration if SQLite fails
+            }
+
+            console.log('✅ Registration process completed successfully');
             return { success: true, data: response?.user };
         } catch (e) {
+            console.error('❌ Registration error in AuthContext:', e);
             let msg = e.message;
-            if (msg.includes('(auth/invalid-email)')) msg = 'Invalid email address';
-            if (msg.includes('(auth/email-already-in-use)')) msg = 'Email already in use';
+            
+            // Handle specific Firebase Auth errors with user-friendly messages
+            if (msg.includes('(auth/invalid-email)')) {
+                msg = 'Please enter a valid email address.';
+            } else if (msg.includes('(auth/email-already-in-use)')) {
+                msg = 'This email is already registered. Please use a different email or sign in instead.';
+            } else if (msg.includes('(auth/weak-password)')) {
+                msg = 'Password is too weak. Please use at least 6 characters.';
+            } else if (msg.includes('(auth/operation-not-allowed)')) {
+                msg = 'Email/password accounts are not enabled. Please contact support.';
+            } else if (msg.includes('(auth/too-many-requests)')) {
+                msg = 'Too many failed attempts. Please try again later.';
+            } else if (msg.includes('network') || msg.includes('offline') || msg.includes('connection')) {
+                msg = 'Network error. Please check your internet connection and try again.';
+            } else if (msg.includes('permission-denied') || msg.includes('firestore')) {
+                msg = 'Database error. Please try again or contact support if the problem persists.';
+            } else {
+                // For any other error, provide a generic message but include the original error for debugging
+                console.error('❌ Unhandled registration error:', e.code, e.message);
+                msg = `Registration failed. Please try again.\n\nTechnical details: ${e.code || 'Unknown error'}`;
+            }
+            
             return { success: false, msg };
         }
     }

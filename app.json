@@ -9,14 +9,36 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["background-fetch", "remote-notification"]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/qtalk-logo.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.WAKE_LOCK",
+        "com.google.android.c2dm.permission.RECEIVE"
+      ],
+      "package": "com.malith.qtalk",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "qtalk"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -39,10 +61,31 @@
         {
           "cameraPermission": "Allow QTalk to access camera to scan QR codes for connecting with other users."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/qtalk-logo.png",
+          "color": "#ffffff",
+          "sounds": [],
+          "requestPermissionsOnIOS": true,
+          "iosDisplayInForeground": true
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "updates": {
+      "enabled": false,
+      "checkAutomatically": "ON_ERROR_RECOVERY",
+      "fallbackToCacheTimeout": 0
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d29ff267-ab16-4791-b0ad-a56364f397cb"
+      }
     }
   }
 }

@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
 import { heightPercentageToDP as hp } from 'react-native-responsive-screen';
+// Ensure the file exists at the specified path, or update the path if necessary
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 export default function ConnectionStatus() {
